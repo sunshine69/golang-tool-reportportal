@@ -7,7 +7,6 @@ import (
 
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
@@ -16,18 +15,18 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/publicsuffix"
-	u "github.com/sunshine69/golang-tools/utils"
 	jsoniter "github.com/json-iterator/go"
+	u "github.com/sunshine69/golang-tools/utils"
+	"golang.org/x/net/publicsuffix"
 	"gopkg.in/yaml.v2"
 )
 
 var (
 	REPORTPORTAL_URL, rpAccessToken string
-	json = jsoniter.ConfigCompatibleWithStandardLibrary
+	json                            = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
-//Check the response for error symptom and dump it
+// Check the response for error symptom and dump it
 func CheckRPApiError(m map[string]interface{}, location string) bool {
 	errorCode, isError := m["errorCode"]
 	if isError {
@@ -120,7 +119,7 @@ func Get_ui_token(username, password string, jar *cookiejar.Jar) string {
 	resp, err := client.Do(req)
 	u.CheckErr(err, "Get_ui_token client.Do")
 	defer resp.Body.Close()
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	u.CheckErr(err, "Get_ui_token read body")
 	m := map[string]interface{}{}
 	u.CheckErr(json.Unmarshal(content, &m), "Get_ui_token Unmarshal")
@@ -187,7 +186,7 @@ func GetLaunch(api_tok, projectName string, launchIDGen interface{}, jar *cookie
 	return m
 }
 
-//Update a launch. Noted that the tags format is a coma separated string, and it is merged/relace with current tags depending on the value of tags_update_ops (add|delete|replace) (add new tag to existing tag, delete a tag in the existing tag, and replace the whole existing tags with current one)
+// Update a launch. Noted that the tags format is a coma separated string, and it is merged/relace with current tags depending on the value of tags_update_ops (add|delete|replace) (add new tag to existing tag, delete a tag in the existing tag, and replace the whole existing tags with current one)
 func UpdateLaunch(api_tok, projectName string, launchIDGen interface{}, description, tags, tags_update_ops string, jar *cookiejar.Jar) string {
 	if api_tok == "" {
 		ui_tok := Get_ui_token(os.Getenv("REPORTPORTAL_ADMIN_USER"), os.Getenv("REPORTPORTAL_ADMIN_PASS"), jar)
@@ -266,8 +265,8 @@ func StartRPRootItem(api_tok, projectName, name, launchUUID, description, tags s
 	return StartRPItem(api_tok, projectName, name, launchUUID, "", "SUITE", description, tags, jar)
 }
 
-//Start a new launch with description and list of tags.
-//Return the string "launchUUID=%s\nrootItemUUID=%s"
+// Start a new launch with description and list of tags.
+// Return the string "launchUUID=%s\nrootItemUUID=%s"
 func LaunchTestRun(api_tok, projectName, name, description, tags, mode string, createRootItem bool, jar *cookiejar.Jar) string {
 	if mode == "" {
 		mode = "DEFAULT"
@@ -363,7 +362,7 @@ func AttachFileToRPItem(api_tok, projectName, launchUUID, itemUUID, filePath str
 			}
 		]`, launchUUID, itemUUID, time.Now().UnixNano()/int64(time.Millisecond), filePath)
 
-	tempFile, err := ioutil.TempFile("", "jsonPaths.json")
+	tempFile, err := os.CreateTemp("", "jsonPaths.json")
 	defer os.Remove(tempFile.Name())
 
 	u.CheckErr(err, "json_request_part/tempfile")
@@ -457,7 +456,7 @@ func Generate_service_name(srv_name string) string {
 
 func ProcessYamlFile(filePath string) string {
 	log.Printf("Process file %s", filePath)
-	inputDataByte, err := ioutil.ReadFile(filePath)
+	inputDataByte, err := os.ReadFile(filePath)
 	u.CheckErr((err), "processYamlFile 1")
 	m := make(map[interface{}]interface{})
 	err = yaml.Unmarshal([]byte(inputDataByte), &m)
@@ -492,7 +491,7 @@ func ProcessYamlFile(filePath string) string {
 	m["extensions"] = m1
 	marshallBack, err := yaml.Marshal(&m)
 	u.CheckErr(err, "processYamlFile marshallBack")
-	ioutil.WriteFile(filePath, []byte(marshallBack), 0755)
+	os.WriteFile(filePath, []byte(marshallBack), 0755)
 	// return serviceName
 	return "OK"
 }
@@ -573,7 +572,7 @@ User <img src='{{.avatar_url}}' style="width:20px;height:20px;"><a href='{{.user
 	}
 }
 
-//See codeception .gitlab-ci.yaml for more infor about the usage and input. The logfileObj is the obj parsed from the logfile field in the curl call.
+// See codeception .gitlab-ci.yaml for more infor about the usage and input. The logfileObj is the obj parsed from the logfile field in the curl call.
 func CheckAndMakeRPLaunch(rpProjectName string, logfileObj map[string]interface{}, application, message string) bool {
 	applicationObj := make(map[string]interface{})
 	err := json.UnmarshalFromString(application, &applicationObj)
@@ -664,8 +663,8 @@ func CheckAndMakeRPLaunch(rpProjectName string, logfileObj map[string]interface{
 	return true
 }
 
-//Return a locator - will be used in UpdateLaunchItemsWithDefectType
-//The subTypeLongName is the one we created using the webgui
+// Return a locator - will be used in UpdateLaunchItemsWithDefectType
+// The subTypeLongName is the one we created using the webgui
 func GetProjectSubTypeID(rpAccessToken, rpProjectName, subTypeLongName string, jar *cookiejar.Jar) string {
 	url := fmt.Sprintf("%s/api/v1/%s/settings", REPORTPORTAL_URL, rpProjectName)
 	m := u.MakeRequest("GET", map[string]interface{}{
@@ -693,7 +692,7 @@ func GetProjectSubTypeID(rpAccessToken, rpProjectName, subTypeLongName string, j
 	return ""
 }
 
-//Classified item typed for a launch. Get all items qualified for the filter_status, set the issueType based on a filter_status and set_status
+// Classified item typed for a launch. Get all items qualified for the filter_status, set the issueType based on a filter_status and set_status
 // data is provided as a more facts to help making decision to assign issueType. Usually it is the raw log output of the test command. Not in use yet though.
 func UpdateLaunchItemsWithDefectType(rpAccessToken, rpProjectName string, launchID int, filter_status, set_status, data, description string, jar *cookiejar.Jar) []map[string]interface{} {
 	issueType := ""
@@ -777,5 +776,6 @@ func UpdateLaunchItemsWithDefectType(rpAccessToken, rpProjectName string, launch
 	} else {
 		log.Printf("[DEBUG] findBrokenServiceForFixturePtn not match anything. data: " + data)
 	}
+	u.MergeAttributes()
 	return respList
 }
